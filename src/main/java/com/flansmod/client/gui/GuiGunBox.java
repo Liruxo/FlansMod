@@ -11,7 +11,6 @@ import net.minecraft.client.renderer.RenderItem;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
-
 import com.flansmod.common.FlansMod;
 import com.flansmod.common.guns.boxes.ContainerGunBox;
 import com.flansmod.common.guns.boxes.GunBoxType;
@@ -168,7 +167,7 @@ public class GuiGunBox extends GuiContainer
 	}
 	
 	@Override
-	protected void drawGuiContainerBackgroundLayer(float f, int i1, int j1)
+	protected void drawGuiContainerBackgroundLayer(float f, int mouseX, int mouseY)
 	{
 		GlStateManager.color(1F, 1F, 1F, 1F);
 		mc.renderEngine.bindTexture(texture);
@@ -212,12 +211,12 @@ public class GuiGunBox extends GuiContainer
 				renderPanelBackground(currentEntry, originX + 8, originY + 57);
 
 				//Render left panel detail
-				renderPanelForeground(currentEntry, originX + 8, originY + 57);
+				renderPanelForeground(currentEntry, originX + 8, originY + 57, mouseX, mouseY);
 
 				if(currentSubEntry != null)
 				{
 					//Render right panel detail
-					renderPanelForeground(currentSubEntry, originX + 161, originY + 57);
+					renderPanelForeground(currentSubEntry, originX + 161, originY + 57, mouseX, mouseY);
 				}
 				
 				
@@ -226,7 +225,7 @@ public class GuiGunBox extends GuiContainer
 					if(i >= currentEntry.childEntries.size())
 						break;
 					GunBoxEntry subEntry = currentEntry.childEntries.get(i);
-					renderInfoType(subEntry.type, originX + 134, originY + 58 + i * 22);
+					renderInfoType(subEntry.type, originX + 134, originY + 58 + i * 22, mouseX, mouseY);
 				}
 			}
 			
@@ -237,7 +236,7 @@ public class GuiGunBox extends GuiContainer
 					break;
 				GunBoxEntryTopLevel entry = currentPage.entries.get(i);
 
-				renderInfoType(entry.type, originX + 106, originY + 58 + i * 22);
+				renderInfoType(entry.type, originX + 106, originY + 58 + i * 22, mouseX, mouseY);
 			}
 		}
 		int stringWidth = mc.fontRenderer.getStringWidth(type.name);
@@ -252,14 +251,14 @@ public class GuiGunBox extends GuiContainer
 		renderHoveredToolTip(mouseX, mouseY);
 	}
 	
-	private void renderInfoType(InfoType type, int x, int y)
+	private void renderInfoType(InfoType type, int x, int y,  int mouseX, int mouseY)
 	{
 		if(type == null)
 		{
 			FlansMod.log.warn("Null type when rendering!");
 			return;
 		}
-		drawSlotInventory(new ItemStack(type.item), x, y);
+		drawSlotInventoryAndHoveringTooltip(new ItemStack(type.item), x, y, mouseX, mouseY);
 	}
 	
 	private void renderPanelBackground(GunBoxEntry entry, int x, int y)
@@ -275,7 +274,7 @@ public class GuiGunBox extends GuiContainer
 			drawModalRectWithCustomSizedTexture(x + 5, y + 64, 276, 122, 18 + 20 * (numPartsOnLine2 - 1), 18, textureX, textureY);
 	}
 	
-	private void renderPanelForeground(GunBoxEntry entry, int x, int y)
+	private void renderPanelForeground(GunBoxEntry entry, int x, int y, int mouseX, int mouseY)
 	{
 		if(entry == null)
 		{
@@ -307,22 +306,48 @@ public class GuiGunBox extends GuiContainer
 		
 		for(int i = 0; i < numPartsOnLine1; i++)
 		{
-			drawSlotInventory(entry.requiredParts.get(i), x + 6 + 20 * i, y + 45);
+			drawSlotInventoryAndHoveringTooltip(entry.requiredParts.get(i), x + 6 + 20 * i, y + 45, mouseX, mouseY);
 		}
 		for(int i = 0; i < numPartsOnLine2; i++)
 		{
-			drawSlotInventory(entry.requiredParts.get(i + 4), x + 6 + 20 * i, y + 65);
+			drawSlotInventoryAndHoveringTooltip(entry.requiredParts.get(i + 4), x + 6 + 20 * i, y + 65, mouseX, mouseY);
 		}
 	}
 
-	private void drawSlotInventory(ItemStack itemstack, int i, int j)
+	private void drawSlotInventoryAndHoveringTooltip(ItemStack itemstack, int x, int y, int mouseX, int mouseY)
 	{
 		if(itemstack == null || itemstack.isEmpty())
 			return;
 		RenderHelper.enableGUIStandardItemLighting();
 		
-		itemRenderer.renderItemIntoGUI(itemstack, i, j);
-		itemRenderer.renderItemOverlayIntoGUI(fontRenderer, itemstack, i, j, null);
+		itemRenderer.renderItemIntoGUI(itemstack, x, y);
+		itemRenderer.renderItemOverlayIntoGUI(fontRenderer, itemstack, x, y, null);
+		
+		drawHovering(itemstack, x, y, mouseY, mouseX);
+	}
+
+	private void drawHovering(ItemStack itemstack,int x, int y, int mouseY, int mouseX)
+	{
+		
+		//TODO DEBUG
+		System.out.println("Item:"+itemstack+" "+x+" "+y+" "+mouseX+" "+mouseY+" "+isPointInRegion(x, y, 16, 16, mouseX, mouseY));
+		
+		if (mouseX >= x - 1 && mouseX < x + 16 + 1 && mouseY >= y - 1 && mouseY < y + 16 + 1)
+		{
+			System.out.println("true");
+            GlStateManager.disableLighting();
+            GlStateManager.disableDepth();
+            GlStateManager.colorMask(true, true, true, false);
+            this.drawGradientRect(x, y, x + 16, y + 16, -2130706433, -2130706433);
+            GlStateManager.colorMask(true, true, true, true);
+            GlStateManager.enableLighting();
+            GlStateManager.enableDepth();
+            
+            if (this.mc.player.inventory.getItemStack().isEmpty())
+            {
+                this.renderToolTip(itemstack, mouseX, mouseY);
+            }
+		}
 	}
 
 	@Override
