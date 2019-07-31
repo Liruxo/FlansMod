@@ -13,7 +13,11 @@ buildscript {
 }
 apply plugin: 'net.minecraftforge.gradle.forge'
 
+<<<<<<< HEAD
 version = version_major + "." + version_minor + "." + version_patch
+=======
+version = "5.6"
+>>>>>>> refs/remotes/origin/1.12.2
 group = "com.flansmod"
 archivesBaseName = "Flan's Mod"
 
@@ -28,7 +32,7 @@ minecraft {
     version = minecraft_version + "-" + forge_version
     runDir = "run"
 
-    replace "@ALLOWED_VERSIONS@", "[5.5.2,5.5.3)"
+    replace "@ALLOWED_VERSIONS@", "[5.6, 5.7)"
     replace "@VERSION@", project.version
     replaceIn "FlansMod.java"
 
@@ -169,9 +173,7 @@ task clearOutput(type: Delete) {
 }
 
 task outputJar(type: Jar) {
-//TODO DEBUG
-//    destinationDir = new File("build/output/mods/")
-    destinationDir = new File("mods/")
+    destinationDir = new File("build/output/mods/")
     from(zipTree("build/libs/${archiveName}")) {
         exclude '**/apocalypse/'
         exclude '**/mw/'

@@ -410,7 +410,6 @@ public class EntityAAGun extends Entity implements IEntityAdditionalSpawnData
 					}
 				}
 				currentBarrel = (currentBarrel + 1) % type.numBarrels;
-				
 			}
 		}
 		if(!world.isRemote)
