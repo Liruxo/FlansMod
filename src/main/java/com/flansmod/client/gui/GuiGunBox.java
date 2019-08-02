@@ -44,6 +44,13 @@ public class GuiGunBox extends GuiContainer
 	private GuiButton craftLeft, craftRight, categoryLeft, categoryRight;
 	private GuiButton[] categories = new GuiButton[numCategories];
 	
+	/**
+	 * This is set to null every time the inventory is in the beginning process of being drawn. If it is detected that the mouse is hovering over a drawn Item,
+	 * this variable is set to this items. If this variable is not null at the end of the drawing process,
+	 * a tooltip for this item is rendered at the location of the mouse
+	 */
+	private ItemStack hovering;
+	
 	public GuiGunBox(InventoryPlayer inventory, GunBoxType type)
 	{
 		super(new ContainerGunBox(inventory));
@@ -119,7 +126,7 @@ public class GuiGunBox extends GuiContainer
 				buttonList.add(categories[i]);
 			}
 		}
-
+		categories[0].enabled = false;
 	}
 	
 	@Override
@@ -157,18 +164,24 @@ public class GuiGunBox extends GuiContainer
 		
 		for(int i = 0; i < numCategories; i++)
 		{
+			GuiButton category = categories[i];
 			if(pageScroller * numCategories + i < type.pages.size())
 			{
-				categories[i].visible = true;
-				categories[i].displayString = type.pages.get(pageScroller * numCategories + i).name;
+				
+				category.visible = true;
+				GunBoxPage page = type.pages.get(pageScroller * numCategories + i);
+				category.displayString = page.name;
+				category.enabled = !page.equals(currentPage);
 			}
-			else categories[i].visible = false;
+			else category.visible = false;
 		}
 	}
 	
 	@Override
 	protected void drawGuiContainerBackgroundLayer(float f, int mouseX, int mouseY)
 	{
+		hovering = null;
+		
 		GlStateManager.color(1F, 1F, 1F, 1F);
 		mc.renderEngine.bindTexture(texture);
 
@@ -225,7 +238,7 @@ public class GuiGunBox extends GuiContainer
 					if(i >= currentEntry.childEntries.size())
 						break;
 					GunBoxEntry subEntry = currentEntry.childEntries.get(i);
-					renderInfoType(subEntry.type, originX + 134, originY + 58 + i * 22, mouseX, mouseY);
+					renderInfoType(subEntry.type, originX + 134, originY + 58 + i * 22, mouseX, mouseY, !subEntry.equals(currentSubEntry));
 				}
 			}
 			
@@ -236,12 +249,12 @@ public class GuiGunBox extends GuiContainer
 					break;
 				GunBoxEntryTopLevel entry = currentPage.entries.get(i);
 
-				renderInfoType(entry.type, originX + 106, originY + 58 + i * 22, mouseX, mouseY);
+				renderInfoType(entry.type, originX + 106, originY + 58 + i * 22, mouseX, mouseY, !entry.equals(currentEntry));
 			}
 		}
-		int stringWidth = mc.fontRenderer.getStringWidth(type.name);
-		mc.fontRenderer.drawString(type.name, originX + xSize / 2 - stringWidth / 2, originY + 8, 0x00000000);
-		mc.fontRenderer.drawString(type.name, originX + xSize / 2 - stringWidth / 2 + 1, originY + 7, 0xffffffff);
+		String name = type.name + " "+(pageScroller+1)+"/"+(int)Math.ceil(type.pages.size()/3.0);
+		int stringWidth = mc.fontRenderer.getStringWidth(name);
+		mc.fontRenderer.drawStringWithShadow(name, originX + xSize / 2 - stringWidth / 2 + 1, originY + 7, 0xffffffff);
 	}
 	
 	@Override
@@ -249,16 +262,26 @@ public class GuiGunBox extends GuiContainer
 	{
 		super.drawScreen(mouseX, mouseY, partialTicks);
 		renderHoveredToolTip(mouseX, mouseY);
+		
+		if (hovering != null && this.mc.player.inventory.getItemStack().isEmpty())
+		{
+			this.renderToolTip(hovering, mouseX, mouseY);
+		}
 	}
 	
-	private void renderInfoType(InfoType type, int x, int y,  int mouseX, int mouseY)
+	private void renderInfoType(InfoType type, int x, int y,  int mouseX, int mouseY, boolean drawhoveringtooltip)
 	{
 		if(type == null)
 		{
 			FlansMod.log.warn("Null type when rendering!");
 			return;
 		}
-		drawSlotInventoryAndHoveringTooltip(new ItemStack(type.item), x, y, mouseX, mouseY);
+		ItemStack item = new ItemStack(type.item);
+		drawSlotInventory(item, x, y);
+		if (drawhoveringtooltip)
+		{
+			drawHoveringTooltip(item, x, y, mouseX, mouseY);
+		}
 	}
 	
 	private void renderPanelBackground(GunBoxEntry entry, int x, int y)
@@ -306,15 +329,23 @@ public class GuiGunBox extends GuiContainer
 		
 		for(int i = 0; i < numPartsOnLine1; i++)
 		{
-			drawSlotInventoryAndHoveringTooltip(entry.requiredParts.get(i), x + 6 + 20 * i, y + 45, mouseX, mouseY);
+			ItemStack stack = entry.requiredParts.get(i);
+			int xcord = x + 6 + 20 * i;
+			int ycord = y + 45;
+			drawSlotInventory(stack, xcord, ycord);
+			drawHoveringTooltip(stack, xcord, ycord, mouseX, mouseY);
 		}
 		for(int i = 0; i < numPartsOnLine2; i++)
 		{
-			drawSlotInventoryAndHoveringTooltip(entry.requiredParts.get(i + 4), x + 6 + 20 * i, y + 65, mouseX, mouseY);
+			ItemStack stack = entry.requiredParts.get(i + 4);
+			int xcord = x + 6 + 20 * i;
+			int ycord = y + 65;
+			drawSlotInventory(stack, xcord, ycord);
+			drawHoveringTooltip(stack, xcord, ycord, mouseX, mouseY);
 		}
 	}
 
-	private void drawSlotInventoryAndHoveringTooltip(ItemStack itemstack, int x, int y, int mouseX, int mouseY)
+	private void drawSlotInventory(ItemStack itemstack, int x, int y)
 	{
 		if(itemstack == null || itemstack.isEmpty())
 			return;
@@ -322,32 +353,6 @@ public class GuiGunBox extends GuiContainer
 		
 		itemRenderer.renderItemIntoGUI(itemstack, x, y);
 		itemRenderer.renderItemOverlayIntoGUI(fontRenderer, itemstack, x, y, null);
-		
-		drawHovering(itemstack, x, y, mouseY, mouseX);
-	}
-
-	private void drawHovering(ItemStack itemstack,int x, int y, int mouseY, int mouseX)
-	{
-		
-		//TODO DEBUG
-		System.out.println("Item:"+itemstack+" "+x+" "+y+" "+mouseX+" "+mouseY+" "+isPointInRegion(x, y, 16, 16, mouseX, mouseY));
-		
-		if (mouseX >= x - 1 && mouseX < x + 16 + 1 && mouseY >= y - 1 && mouseY < y + 16 + 1)
-		{
-			System.out.println("true");
-            GlStateManager.disableLighting();
-            GlStateManager.disableDepth();
-            GlStateManager.colorMask(true, true, true, false);
-            this.drawGradientRect(x, y, x + 16, y + 16, -2130706433, -2130706433);
-            GlStateManager.colorMask(true, true, true, true);
-            GlStateManager.enableLighting();
-            GlStateManager.enableDepth();
-            
-            if (this.mc.player.inventory.getItemStack().isEmpty())
-            {
-                this.renderToolTip(itemstack, mouseX, mouseY);
-            }
-		}
 	}
 
 	@Override
@@ -383,6 +388,30 @@ public class GuiGunBox extends GuiContainer
 		}
 	}
 
+	/**
+	 * This method checks if the mouse is within a 16 by 16 square from the x & y origin, and if so sets the hovering variable to item and renders a darker square on the item slot
+	 * 
+	 * @param item   the drawn ItemStack
+	 * @param x      non relative x coordinate
+	 * @param y      non relative y coordinate
+	 * @param mouseX x position of the mouse
+	 * @param mouseY y position if the mouse
+	 */
+	private void drawHoveringTooltip(ItemStack item, int x, int y, int mouseX, int mouseY)
+	{
+		if (mouseX >= x - 1 && mouseX < x + 16 + 1 && mouseY >= y - 1 && mouseY < y + 16 + 1)
+		{
+            GlStateManager.disableLighting();
+            GlStateManager.disableDepth();
+            GlStateManager.colorMask(true, true, true, false);
+            this.drawGradientRect(x, y, x + 16, y + 16, -2130706433, -2130706433);
+            GlStateManager.colorMask(true, true, true, true);
+            GlStateManager.enableLighting();
+            GlStateManager.enableDepth();
+            
+			hovering =  item;
+		}
+	}
 	
 	@Override
 	protected void keyTyped(char c, int i)
