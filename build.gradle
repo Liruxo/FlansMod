@@ -9,9 +9,20 @@ buildscript {
           name = "Forge maven"
           url = "http://files.minecraftforge.net/maven"
         }
+        
+    // This is only here while FG is under active development
+	configurations.classpath {
+		resolutionStrategy {
+			cacheDynamicVersionsFor 10, "seconds"
+			cacheChangingModulesFor 0, "seconds"
+		}
+	}
+	dependencies {
+		classpath group: "net.minecraftforge.gradle", name: "ForgeGradle", version: "3.+", changing: true
+	}
     }
 }
-apply plugin: 'net.minecraftforge.gradle.forge'
+apply plugin: "net.minecraftforge.gradle"
 
 version = version_major + "." + version_minor + "." + version_patch + version_extra
 group = "com.flansmod"
@@ -35,8 +46,9 @@ minecraft {
     replace "@ALLOWED_VERSIONS_APOCALYPSE@", "[1.0, 1.1)"
     replace "@VERSION_APOCALYPSE@", project.apocalypseVersion
     replaceIn "FlansModApocalypse.java"
-
-    mappings = "stable_39"
+    
+    mappings channel: "snapshot", version: project.mcp_mappings
+    
     //if this is required, it should be enabled locally for selected runs. These runs will take about 10 seconds longer
     makeObfSourceJar = false
 }
@@ -150,7 +162,7 @@ task clearOutput(type: Delete) {
 }
 
 task outputJar(type: Jar) {
-    destinationDir = new File("build/output/mods/")
+    destinationDir = new File("mods/")
     from(zipTree("build/libs/${archiveName}")) {
         exclude '**/apocalypse/'
         exclude '**/mw/'
