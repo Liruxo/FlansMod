@@ -385,13 +385,14 @@ public class EntityVehicle extends EntityDriveable implements IExplodeable
 			wheel.motionY -= 0.98F / 20F;
 			
 			//Apply velocity
-			//If the player driving this is in creative, then we can thrust, no matter what
-			boolean canThrustCreatively = !TeamsManager.vehiclesNeedFuel || (getSeat(0) != null
-				&& getSeat(0).getControllingPassenger() instanceof EntityPlayer
-				&& ((EntityPlayer)getSeat(0).getControllingPassenger()).capabilities.isCreativeMode);
-			//Otherwise, check the fuel tanks!
-			if(canThrustCreatively || data.fuelInTank > data.engine.fuelConsumption * throttle)
+			EntityPlayer driver = getDriver();
+			if(canThrust(data, driver))
 			{
+				if (!driverIsCreative())
+				{
+					data.fuelInTank -= data.engine.fuelConsumption * throttle;
+				}
+
 				if(getVehicleType().tank)
 				{
 					boolean left = wheel.getExpectedWheelID() == 0 || wheel.getExpectedWheelID() == 3;
@@ -532,27 +533,19 @@ public class EntityVehicle extends EntityDriveable implements IExplodeable
 				seat.updatePosition();
 		}
 		
-		//Calculate movement on the client and then send position, rotation etc to the server
-		if(thePlayerIsDrivingThis)
+		if(serverPosX != posX || serverPosY != posY || serverPosZ != posZ || serverYaw != axes.getYaw())
 		{
-			FlansMod.getPacketHandler().sendToServer(new PacketVehicleControl(this));
-			serverPosX = posX;
-			serverPosY = posY;
-			serverPosZ = posZ;
-			serverYaw = axes.getYaw();
+			//Calculate movement on the client and then send position, rotation etc to the server
+			if(thePlayerIsDrivingThis)
+			{
+				FlansMod.getPacketHandler().sendToServer(new PacketVehicleControl(this));
+				serverPosX = posX;
+				serverPosY = posY;
+				serverPosZ = posZ;
+				serverYaw = axes.getYaw();
+			}
 		}
-		
-		//If this is the server, send position updates to everyone, having received them from the driver
-		if(!world.isRemote && ticksExisted % 5 == 0)
-		{
-			FlansMod.getPacketHandler().sendToAllAround(new PacketVehicleControl(this),
-				posX,
-				posY,
-				posZ,
-				FlansMod.driveableUpdateRange,
-				dimension);
-		}
-		
+			
 		int animSpeed = 4;
 		//Change animation speed based on our current throttle
 		if((throttle > 0.05 && throttle <= 0.33) || (throttle < -0.05 && throttle >= -0.33))
@@ -608,7 +601,13 @@ public class EntityVehicle extends EntityDriveable implements IExplodeable
 			}
 		}
 	}
-	
+
+	private boolean canThrust(DriveableData data, EntityPlayer driver) {
+		return !TeamsManager.vehiclesNeedFuel
+				|| driverIsCreative()
+				|| data.fuelInTank > data.engine.fuelConsumption * throttle;
+	}
+
 	public void animateFancyTracks()
 	{
 		float funkypart = getVehicleType().trackLinkFix;

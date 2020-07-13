@@ -54,7 +54,6 @@ public class EntitySeat extends Entity implements IControllable, IEntityAddition
 	public float playerRoll, prevPlayerRoll;
 	
 	public Seat seatInfo;
-	public boolean driver;
 	public RotatedAxes playerLooking;
 	public RotatedAxes prevPlayerLooking;
 	/**
@@ -121,7 +120,6 @@ public class EntitySeat extends Entity implements IControllable, IEntityAddition
 		driveableID = d.getEntityId();
 		seatInfo = driveable.getDriveableType().seats[id];
 		seatID = id;
-		driver = id == 0;
 		setPosition(d.posX, d.posY, d.posZ);
 		playerPosX = prevPlayerPosX = posX;
 		playerPosY = prevPlayerPosY = posY;
@@ -173,8 +171,7 @@ public class EntitySeat extends Entity implements IControllable, IEntityAddition
 				entityInThisSeat instanceof EntityPlayer && FlansMod.proxy.isThePlayer((EntityPlayer)entityInThisSeat);
 		
 		// Reset traverse sounds if player exits the vehicle
-		
-		if(isThePlayer)
+		if(!isThePlayer)
 		{
 			playYawSound = false;
 			playPitchSound = false;
@@ -185,7 +182,7 @@ public class EntitySeat extends Entity implements IControllable, IEntityAddition
 		// If on the client
 		if(world.isRemote)
 		{
-			if(driver && isThePlayer && FlansMod.proxy.mouseControlEnabled() && driveable.hasMouseControlMode())
+			if(isDriverSeat() && isThePlayer && FlansMod.proxy.mouseControlEnabled() && driveable.hasMouseControlMode())
 			{
 				looking = new RotatedAxes();
 				playerLooking = new RotatedAxes();
@@ -216,6 +213,182 @@ public class EntitySeat extends Entity implements IControllable, IEntityAddition
 		minigunAngle += minigunSpeed;
 	}
 	
+	@SideOnly(Side.CLIENT)
+	private void updateSeatRotation() {
+		
+		Entity entityInThisSeat = getControllingPassenger();
+		boolean isThePlayer =
+				entityInThisSeat instanceof EntityPlayer && FlansMod.proxy.isThePlayer((EntityPlayer)entityInThisSeat);
+		
+		if (!isThePlayer)
+			return;
+		
+		// Move the seat accordingly
+		// Consider new Yaw and Yaw limiters
+		
+		float targetX = playerLooking.getYaw();
+		
+		float yawToMove = (targetX - looking.getYaw());
+		while(yawToMove > 180F)
+		{
+			yawToMove -= 360F;
+		}
+		while(yawToMove <= -180F)
+		{
+			yawToMove += 360F;
+		}
+		
+		float signDeltaX = 0;
+		if(yawToMove > (seatInfo.aimingSpeed.x / 2) && !seatInfo.legacyAiming)
+		{
+			signDeltaX = 1;
+		}
+		else if(yawToMove < -(seatInfo.aimingSpeed.x / 2) && !seatInfo.legacyAiming)
+		{
+			signDeltaX = -1;
+		}
+		else
+		{
+			signDeltaX = 0;
+		}
+		
+		
+		// Calculate new yaw and consider yaw limiters
+		float newYaw = 0f;
+		
+		if(seatInfo.legacyAiming || (signDeltaX == 0))
+		{
+			newYaw = playerLooking.getYaw();
+		}
+		else
+		{
+			newYaw = looking.getYaw() + signDeltaX * seatInfo.aimingSpeed.x;
+		}
+		// Since the yaw limiters go from -360 to 360, we need to find a pair of yaw values and check them both
+		float otherNewYaw = newYaw - 360F;
+		if(newYaw < 0)
+			otherNewYaw = newYaw + 360F;
+		if((!(newYaw >= seatInfo.minYaw) || !(newYaw <= seatInfo.maxYaw)) &&
+				(!(otherNewYaw >= seatInfo.minYaw) || !(otherNewYaw <= seatInfo.maxYaw)))
+		{
+			float newYawDistFromRange =
+					Math.min(Math.abs(newYaw - seatInfo.minYaw), Math.abs(newYaw - seatInfo.maxYaw));
+			float otherNewYawDistFromRange =
+					Math.min(Math.abs(otherNewYaw - seatInfo.minYaw), Math.abs(otherNewYaw - seatInfo.maxYaw));
+			// If the newYaw is closer to the range than the otherNewYaw, move newYaw into the range
+			if(newYawDistFromRange <= otherNewYawDistFromRange)
+			{
+				if(newYaw > seatInfo.maxYaw)
+					newYaw = seatInfo.maxYaw;
+				if(newYaw < seatInfo.minYaw)
+					newYaw = seatInfo.minYaw;
+			}
+			// Else, the otherNewYaw is closer, so move it in
+			else
+			{
+				if(otherNewYaw > seatInfo.maxYaw)
+					otherNewYaw = seatInfo.maxYaw;
+				if(otherNewYaw < seatInfo.minYaw)
+					otherNewYaw = seatInfo.minYaw;
+				// Then match up the newYaw with the otherNewYaw
+				if(newYaw < 0)
+					newYaw = otherNewYaw - 360F;
+				else newYaw = otherNewYaw + 360F;
+			}
+		}
+		
+		// Calculate the new pitch and consider pitch limiters
+		float targetY = playerLooking.getPitch();
+		
+		float pitchToMove = (targetY - looking.getPitch());
+		while(pitchToMove > 180F)
+		{
+			pitchToMove -= 360F;
+		}
+		while(pitchToMove <= -180F)
+		{
+			pitchToMove += 360F;
+		}
+		
+		float signDeltaY = 0;
+		if(pitchToMove > (seatInfo.aimingSpeed.y / 2) && !seatInfo.legacyAiming)
+		{
+			signDeltaY = 1;
+		}
+		else if(pitchToMove < -(seatInfo.aimingSpeed.y / 2) && !seatInfo.legacyAiming)
+		{
+			signDeltaY = -1;
+		}
+		else
+		{
+			signDeltaY = 0;
+		}
+		
+		float newPitch = 0f;
+		
+		
+		// Pitches the gun at the last possible moment in order to reach target pitch at the same time as target yaw.
+		float minYawToMove = 0f;
+		
+		float currentYawToMove = 0f;
+		
+		if(seatInfo.latePitch)
+		{
+			minYawToMove = ((float)Math
+					.sqrt((pitchToMove / seatInfo.aimingSpeed.y) * (pitchToMove / seatInfo.aimingSpeed.y))) *
+					seatInfo.aimingSpeed.x;
+		}
+		else
+		{
+			minYawToMove = 360f;
+		}
+		
+		currentYawToMove = (float)Math.sqrt((yawToMove) * (yawToMove));
+		
+		if(seatInfo.legacyAiming || (signDeltaY == 0))
+		{
+			newPitch = playerLooking.getPitch();
+		}
+		else if(!seatInfo.yawBeforePitch && currentYawToMove < minYawToMove)
+		{
+			newPitch = looking.getPitch() + signDeltaY * seatInfo.aimingSpeed.y;
+		}
+		else if(seatInfo.yawBeforePitch && signDeltaX == 0)
+		{
+			newPitch = looking.getPitch() + signDeltaY * seatInfo.aimingSpeed.y;
+		}
+		else if(seatInfo.yawBeforePitch)
+		{
+			newPitch = looking.getPitch();
+		}
+		else
+		{
+			newPitch = looking.getPitch();
+		}
+		
+		if(newPitch > -seatInfo.minPitch)
+			newPitch = -seatInfo.minPitch;
+		if(newPitch < -seatInfo.maxPitch)
+			newPitch = -seatInfo.maxPitch;
+		
+		
+		if(looking.getYaw() != newYaw || looking.getPitch() != newPitch)
+		{
+			// Now set the new angles
+			prevLooking = looking.clone();
+			looking.setAngles(newYaw, newPitch, 0F);
+			FlansMod.getPacketHandler().sendToServer(new PacketSeatUpdates(this));
+		}
+		
+		playYawSound = signDeltaX != 0 && seatInfo.traverseSounds;
+		
+		if(signDeltaY != 0 && !seatInfo.yawBeforePitch && currentYawToMove < minYawToMove)
+		{
+			playPitchSound = true;
+		}
+		else playPitchSound = signDeltaY != 0 && seatInfo.yawBeforePitch && signDeltaX == 0;
+	}
+	
 	/**
 	 * Set the position to be that of the driveable plus the local position, rotated
 	 */
@@ -235,6 +408,9 @@ public class EntitySeat extends Entity implements IControllable, IEntityAddition
 		
 		if(seatInfo == null)
 			seatInfo = driveable.getDriveableType().seats[seatID];
+		
+		if (world.isRemote)
+			updateSeatRotation();
 		
 		prevPlayerPosX = playerPosX;
 		prevPlayerPosY = playerPosY;
@@ -375,28 +551,25 @@ public class EntitySeat extends Entity implements IControllable, IEntityAddition
 		prevPlayerLooking = playerLooking.clone();
 		
 		// Driver seat should pass input to driveable
-		if(driver)
+		if(isDriverSeat())
 		{
 			driveable.onMouseMoved(deltaX, deltaY);
 		}
 		// Other seats should look around, but also the driver seat if mouse control mode is disabled
-		if(!driver || !FlansModClient.controlModeMouse || !driveable.hasMouseControlMode())
+		if(!isDriverSeat() || !FlansModClient.controlModeMouse || !driveable.hasMouseControlMode())
 		{
 			float lookSpeed = 4F;
 			
 			// Angle stuff for the player
+			// Calculate the new pitch yaw while considering limiters
+			float newPlayerYaw = playerLooking.getYaw() + deltaX / lookSpeed * mc.gameSettings.mouseSensitivity;
+			float newPlayerPitch = playerLooking.getPitch() - deltaY / lookSpeed * mc.gameSettings.mouseSensitivity;
 			
-			// Calculate the new pitch and consider pitch limiters
-			float newPlayerPitch = playerLooking.getPitch() -
-					deltaY / lookSpeed * mc.gameSettings.mouseSensitivity;
 			if(newPlayerPitch > -seatInfo.minPitch)
 				newPlayerPitch = -seatInfo.minPitch;
 			if(newPlayerPitch < -seatInfo.maxPitch)
 				newPlayerPitch = -seatInfo.maxPitch;
-			
-			// Calculate new yaw and consider yaw limiters
-			float newPlayerYaw = playerLooking.getYaw() +
-					deltaX / lookSpeed * mc.gameSettings.mouseSensitivity;
+
 			// Since the yaw limiters go from -360 to 360, we need to find a pair of yaw values and check them both
 			float otherNewPlayerYaw = newPlayerYaw - 360F;
 			if(newPlayerYaw < 0)
@@ -436,169 +609,6 @@ public class EntitySeat extends Entity implements IControllable, IEntityAddition
 			// Now set the new angles
 			playerLooking.setAngles(newPlayerYaw, newPlayerPitch, 0F);
 			
-			
-			// Move the seat accordingly
-			
-			
-			// Consider new Yaw and Yaw limiters
-			
-			
-			float targetX = playerLooking.getYaw();
-			
-			float yawToMove = (targetX - looking.getYaw());
-			while(yawToMove > 180F)
-			{
-				yawToMove -= 360F;
-			}
-			while(yawToMove <= -180F)
-			{
-				yawToMove += 360F;
-			}
-			
-			float signDeltaX = 0;
-			if(yawToMove > (seatInfo.aimingSpeed.x / 2) && !seatInfo.legacyAiming)
-			{
-				signDeltaX = 1;
-			}
-			else if(yawToMove < -(seatInfo.aimingSpeed.x / 2) && !seatInfo.legacyAiming)
-			{
-				signDeltaX = -1;
-			}
-			else
-			{
-				signDeltaX = 0;
-			}
-			
-			// Calculate new yaw and consider yaw limiters
-			float newYaw = 0f;
-			
-			if(seatInfo.legacyAiming || (signDeltaX == 0 && deltaX == 0))
-			{
-				newYaw = playerLooking.getYaw();
-			}
-			else
-			{
-				newYaw = looking.getYaw() + signDeltaX * seatInfo.aimingSpeed.x;
-			}
-			// Since the yaw limiters go from -360 to 360, we need to find a pair of yaw values and check them both
-			float otherNewYaw = newYaw - 360F;
-			if(newYaw < 0)
-				otherNewYaw = newYaw + 360F;
-			if((!(newYaw >= seatInfo.minYaw) || !(newYaw <= seatInfo.maxYaw)) &&
-					(!(otherNewYaw >= seatInfo.minYaw) || !(otherNewYaw <= seatInfo.maxYaw)))
-			{
-				float newYawDistFromRange =
-						Math.min(Math.abs(newYaw - seatInfo.minYaw), Math.abs(newYaw - seatInfo.maxYaw));
-				float otherNewYawDistFromRange =
-						Math.min(Math.abs(otherNewYaw - seatInfo.minYaw), Math.abs(otherNewYaw - seatInfo.maxYaw));
-				// If the newYaw is closer to the range than the otherNewYaw, move newYaw into the range
-				if(newYawDistFromRange <= otherNewYawDistFromRange)
-				{
-					if(newYaw > seatInfo.maxYaw)
-						newYaw = seatInfo.maxYaw;
-					if(newYaw < seatInfo.minYaw)
-						newYaw = seatInfo.minYaw;
-				}
-				// Else, the otherNewYaw is closer, so move it in
-				else
-				{
-					if(otherNewYaw > seatInfo.maxYaw)
-						otherNewYaw = seatInfo.maxYaw;
-					if(otherNewYaw < seatInfo.minYaw)
-						otherNewYaw = seatInfo.minYaw;
-					// Then match up the newYaw with the otherNewYaw
-					if(newYaw < 0)
-						newYaw = otherNewYaw - 360F;
-					else newYaw = otherNewYaw + 360F;
-				}
-			}
-			
-			// Calculate the new pitch and consider pitch limiters
-			float targetY = playerLooking.getPitch();
-			
-			float pitchToMove = (targetY - looking.getPitch());
-			while(pitchToMove > 180F)
-			{
-				pitchToMove -= 360F;
-			}
-			while(pitchToMove <= -180F)
-			{
-				pitchToMove += 360F;
-			}
-			
-			float signDeltaY = 0;
-			if(pitchToMove > (seatInfo.aimingSpeed.y / 2) && !seatInfo.legacyAiming)
-			{
-				signDeltaY = 1;
-			}
-			else if(pitchToMove < -(seatInfo.aimingSpeed.y / 2) && !seatInfo.legacyAiming)
-			{
-				signDeltaY = -1;
-			}
-			else
-			{
-				signDeltaY = 0;
-			}
-			
-			float newPitch = 0f;
-			
-			
-			// Pitches the gun at the last possible moment in order to reach target pitch at the same time as target yaw.
-			float minYawToMove = 0f;
-			
-			float currentYawToMove = 0f;
-			
-			if(seatInfo.latePitch)
-			{
-				minYawToMove = ((float)Math
-						.sqrt((pitchToMove / seatInfo.aimingSpeed.y) * (pitchToMove / seatInfo.aimingSpeed.y))) *
-						seatInfo.aimingSpeed.x;
-			}
-			else
-			{
-				minYawToMove = 360f;
-			}
-			
-			currentYawToMove = (float)Math.sqrt((yawToMove) * (yawToMove));
-			
-			if(seatInfo.legacyAiming || (signDeltaY == 0 && deltaY == 0))
-			{
-				newPitch = playerLooking.getPitch();
-			}
-			else if(!seatInfo.yawBeforePitch && currentYawToMove < minYawToMove)
-			{
-				newPitch = looking.getPitch() + signDeltaY * seatInfo.aimingSpeed.y;
-			}
-			else if(seatInfo.yawBeforePitch && signDeltaX == 0)
-			{
-				newPitch = looking.getPitch() + signDeltaY * seatInfo.aimingSpeed.y;
-			}
-			else if(seatInfo.yawBeforePitch)
-			{
-				newPitch = looking.getPitch();
-			}
-			else
-			{
-				newPitch = looking.getPitch();
-			}
-			
-			if(newPitch > -seatInfo.minPitch)
-				newPitch = -seatInfo.minPitch;
-			if(newPitch < -seatInfo.maxPitch)
-				newPitch = -seatInfo.maxPitch;
-			
-			// Now set the new angles
-			looking.setAngles(newYaw, newPitch, 0F);
-			
-			FlansMod.getPacketHandler().sendToServer(new PacketSeatUpdates(this));
-			
-			playYawSound = signDeltaX != 0 && seatInfo.traverseSounds;
-			
-			if(signDeltaY != 0 && !seatInfo.yawBeforePitch && currentYawToMove < minYawToMove)
-			{
-				playPitchSound = true;
-			}
-			else playPitchSound = signDeltaY != 0 && seatInfo.yawBeforePitch && signDeltaX == 0;
 		}
 	}
 	
@@ -610,7 +620,7 @@ public class EntitySeat extends Entity implements IControllable, IEntityAddition
 			FlansMod.getPacketHandler().sendToServer(new PacketDriveableKeyHeld(key, held));
 			
 		}
-		if(driver)
+		if(isDriverSeat())
 		{
 			driveable.updateKeyHeldState(key, held);
 		}
@@ -625,7 +635,7 @@ public class EntitySeat extends Entity implements IControllable, IEntityAddition
 	public boolean pressKey(int key, EntityPlayer player, boolean isOnTick)
 	{
 		// Driver seat should pass input to driveable
-		if(driver && driveable != null)
+		if(isDriverSeat() && driveable != null)
 		{
 			return driveable.pressKey(key, player, isOnTick);
 		}
@@ -807,6 +817,11 @@ public class EntitySeat extends Entity implements IControllable, IEntityAddition
 	{
 		return this;
 	}
+  
+	public boolean isDriverSeat()
+	{
+		return seatID == 0;
+	}
 	
 	@Override
 	public boolean startRiding(Entity riding)
@@ -893,7 +908,6 @@ public class EntitySeat extends Entity implements IControllable, IEntityAddition
 		if(world.getEntityByID(driveableID) instanceof EntityDriveable)
 			driveable = (EntityDriveable)world.getEntityByID(driveableID);
 		seatID = data.readInt();
-		driver = seatID == 0;
 		if(seatID >= 0 && driveable != null)
 		{
 			seatInfo = driveable.getDriveableType().seats[seatID];

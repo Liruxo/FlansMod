@@ -1,6 +1,7 @@
 buildscript {
     dependencies {
         classpath 'net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT'
+        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.4'
     }
     repositories {
         jcenter()
@@ -23,6 +24,7 @@ buildscript {
     }
 }
 apply plugin: "net.minecraftforge.gradle"
+apply plugin: 'com.github.johnrengelman.shadow'
 
 version = version_major + "." + version_minor + "." + version_patch + version_extra
 group = "com.flansmod"
@@ -33,6 +35,11 @@ project.ext.set("apocalypseVersion", "1.0")
 sourceCompatibility = targetCompatibility = '1.8'
 compileJava {
     sourceCompatibility = targetCompatibility = '1.8'
+}
+
+dependencies {
+    compile "io.vavr:vavr:0.10.2"
+    shadow "io.vavr:vavr:0.10.2"
 }
 
 minecraft {
@@ -162,8 +169,8 @@ task clearOutput(type: Delete) {
 }
 
 task outputJar(type: Jar) {
-    destinationDir = new File("mods/")
-    from(zipTree("build/libs/${archiveName}")) {
+    destinationDir = new File("build/output/mods/")
+    from(zipTree("build/libs/${archivesBaseName}-${version}-all.jar")) {
         exclude '**/apocalypse/'
         exclude '**/mw/'
         exclude '**/nerf/'
@@ -183,7 +190,20 @@ task outputPacks(type: Copy) {
     into 'build/output/Flan/'
 }
 
+shadowJar {
+    configurations = [project.configurations.shadow]
+}
+
+reobf {
+    shadowJar {
+        mappingType = "SEARGE"
+    }
+}
+
+tasks.reobfShadowJar.mustRunAfter shadowJar
+
 build {
+    dependsOn reobfShadowJar
     dependsOn contentPacks
     dependsOn clearOutput
     dependsOn outputJar
