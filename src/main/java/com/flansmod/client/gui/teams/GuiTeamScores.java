@@ -43,13 +43,13 @@ public class GuiTeamScores extends GuiTeamsBase
 		int l = scaledresolution.getScaledHeight();
 		FontRenderer fontrenderer = mc.fontRenderer;
 		drawDefaultBackground();
-		GL11.glEnable(3042 /*GL_BLEND*/);
+		GlStateManager.enableBlend();
 		
 		mc.renderEngine.bindTexture(texture2);
 		
 		int guiHeight = 68 + 9 * teamInfo.numLines;
 		
-		GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+		GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
 		int m = k / 2 - 156;
 		int n = l / 2 - guiHeight / 2;
 		//Like draw texturedModalRect, but with custom image size
@@ -152,7 +152,7 @@ public class GuiTeamScores extends GuiTeamsBase
 			}
 		}
 		*/
-		GL11.glDisable(3042 /*GL_BLEND*/);
+		GlStateManager.disableBlend();
 	}
 	
 	public void renderDMGUI(PacketTeamInfo teamInfo)
@@ -163,11 +163,11 @@ public class GuiTeamScores extends GuiTeamsBase
 		int l = scaledresolution.getScaledHeight();
 		FontRenderer fontrenderer = mc.fontRenderer;
 		drawDefaultBackground();
-		GL11.glEnable(3042 /*GL_BLEND*/);
+		GlStateManager.enableBlend();
 		
 		mc.renderEngine.bindTexture(texture);
 		
-		GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+		GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
 		int guiHeight = 34 + 9 * teamInfo.numLines;
 		int m = k / 2 - 128;
 		int n = l / 2 - guiHeight / 2;
@@ -216,7 +216,7 @@ public class GuiTeamScores extends GuiTeamsBase
 				line++;
 			}
 		}
-		GL11.glDisable(3042 /*GL_BLEND*/);
+		GlStateManager.disableBlend();
 	}
 	
 	@Override

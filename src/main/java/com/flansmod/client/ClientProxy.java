@@ -13,7 +13,6 @@ import org.lwjgl.input.Mouse;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.block.model.ModelResourceLocation;
-import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.Item;
 import net.minecraft.util.ResourceLocation;
@@ -216,6 +215,7 @@ public class ClientProxy extends CommonProxy
 		ModelLoader.setCustomModelResourceLocation(Item.getItemFromBlock(FlansMod.paintjobTable), 0, new ModelResourceLocation("flansmod:paintjobTable", "inventory"));
 		ModelLoader.registerItemVariants(Item.getItemFromBlock(FlansMod.paintjobTable),
 				new ResourceLocation("flansmod:paintjobTable"));
+		ModelLoader.setCustomModelResourceLocation(FlansMod.crosshairsymbol, 0, new ModelResourceLocation("flansmod:crosshairsymbol", "inventory"));
 	}
 	
 	/**
@@ -273,8 +273,6 @@ public class ClientProxy extends CommonProxy
 	public void registerRenderers()
 	{
 		FlansMod.log.info("Registering Renderers");
-		
-		RenderManager rm = Minecraft.getMinecraft().getRenderManager();
 		
 		RenderingRegistry.registerEntityRenderingHandler(EntityBullet.class, new RenderBullet.Factory());
 		RenderingRegistry.registerEntityRenderingHandler(EntityGrenade.class, new RenderGrenade.Factory());
@@ -352,7 +350,7 @@ public class ClientProxy extends CommonProxy
 		
 		switch(ID)
 		{
-			case 0: return new GuiDriveableCrafting(player.inventory, world, x, y, z);
+			case 0: return new GuiDriveableCrafting(player.inventory);
 			case 1: return new GuiDriveableRepair(player);
 			case 2: return new GuiGunModTable(player.inventory, world);
 			case 5: return new GuiGunBox(player.inventory, ((BlockGunBox)world.getBlockState(new BlockPos(x, y, z)).getBlock()).type);

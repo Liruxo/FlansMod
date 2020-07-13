@@ -42,6 +42,9 @@ public class VehicleType extends DriveableType
 	 */
 	public boolean hasDoor = false;
 	
+	public int trackLinkFix = 5;
+	public boolean flipLinkFix = false;
+	
 	public static ArrayList<VehicleType> types = new ArrayList<>();
 	
 	public VehicleType(TypeFile file)
@@ -105,7 +108,8 @@ public class VehicleType extends DriveableType
 	}
 	
 	/**
-	 * Find the items needed to rebuild a part. The returned array is disconnected from the template items it has looked up
+	 * Find the items needed to rebuild a part. The returned array is disconnected from the template items it has looked
+	 * up
 	 */
 	@Override
 	public ArrayList<ItemStack> getItemsRequired(DriveablePart part, PartType engine)

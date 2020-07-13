@@ -188,20 +188,15 @@ public class ShotHandler
 			if (optionalPlayer.isPresent())
 			{
 				EntityPlayerMP player = optionalPlayer.get();
-				
-				if(TeamsManager.getInstance() != null)
+				TeamsRound round;
+				if(TeamsManager.getInstance() != null && (round = TeamsManager.getInstance().currentRound) != null)
 				{
-					TeamsRound round = TeamsManager.getInstance().currentRound;
+					Optional<Team> shooterTeam = round.getTeam(player);
+					Optional<Team> victimTeam = round.getTeam(playerHit.hitbox.player);
 					
-					if (round != null)
+					if (!shooterTeam.isPresent() || !victimTeam.isPresent() || !shooterTeam.get().equals(victimTeam.get()))
 					{
-						Optional<Team> shooterTeam = round.getTeam(player);
-						Optional<Team> victimTeam = round.getTeam(playerHit.hitbox.player);
-					
-						if (!shooterTeam.isPresent() || !victimTeam.isPresent() || !shooterTeam.get().equals(victimTeam.get()))
-						{
-							FlansMod.getPacketHandler().sendTo(new PacketHitMarker(), player);
-						}
+						FlansMod.getPacketHandler().sendTo(new PacketHitMarker(), player);
 					}
 				}
 				else // No teams mod, just add marker
@@ -301,7 +296,7 @@ public class ShotHandler
 		
 		if(bulletType.explosionRadius > 0)
 		{
-			new FlansModExplosion(world, shot.getShooterOptional().orElse(null), shot.getPlayerOptional().orElse(null), bulletType,
+			new FlansModExplosion(world, shot.getShooterOptional().orElse(null), shot.getPlayerOptional(), bulletType,
 					detonatePos.x, detonatePos.y, detonatePos.z, bulletType.explosionRadius, bulletType.fireRadius > 0, bulletType.flak > 0, bulletType.explosionBreaksBlocks);
 		}
 		if(bulletType.fireRadius > 0)
@@ -355,8 +350,16 @@ public class ShotHandler
 		vector.z += (float)world.rand.nextGaussian() * spread;
 	}
 	
-	public static Float getBlockPenetrationDecrease(IBlockState blockstate, BlockPos pos, World world)
+	public static float getBlockPenetrationDecrease(IBlockState blockstate, BlockPos pos, World world)
 	{
-		return blockstate.getBlockHardness(world, pos)*2;
+		float hardness = blockstate.getBlockHardness(world, pos) * 2;
+		if (hardness < 0)
+		{
+			return 1000; // Some high value for invincible blocks
+		}
+		else
+		{
+			return Math.max(hardness, 1);
+		}
 	}
 }
